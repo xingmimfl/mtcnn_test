@@ -13,7 +13,7 @@ import mtcnn
 
 def main():
     with torch.cuda.device(DEVICE_IDS[0]):
-        p_model = _model_init()
+        r_net = _model_init()
         #----data loader----
         cls_train_loader = get_dataset(files_vec=['pos_24.txt', 'neg_24.txt'])
         bbox_train_loader = get_dataset(files_vec=['pos_24.txt', 'part_24.txt'])
@@ -28,7 +28,7 @@ def main():
 
         #----get parameters that need back-propagation
         params = []
-        for p in list(p_model.parameters()):
+        for p in list(r_net.parameters()):
             if p.requires_grad == False: continue
             params.append(p)
 
@@ -70,8 +70,8 @@ def main():
             _images = Variable(_images.cuda(DEVICE_IDS[0]))
             _bbox = Variable(_bbox.cuda(DEVICE_IDS[0]))
             _labels = Variable(_labels.cuda(DEVICE_IDS[0]))
-            outputs = p_model(_images) #----model forward 
-            cls_loss, bbox_loss, landmark_loss = p_model.get_loss(outputs, _bbox, _labels, flag)
+            outputs = r_net(_images) #----model forward 
+            cls_loss, bbox_loss, landmark_loss = r_net.get_loss(outputs, _bbox, _labels, flag)
 
             loss = 0
             #if cls_loss is not None: 
@@ -98,7 +98,7 @@ def main():
                 print("iter:%5d " % i, " loss:%.4e" % loss_avg.avg, " cls_loss:%.4e" % cls_loss_avg.avg, " bbox_loss:%.4e" % bbox_loss_avg.avg, " landmark_loss:%.4e" % landmark_loss_avg.avg)
     
                 save_name = '_'.join([SUFFIX, "iter", str(i), '.model'])                
-                torch.save(p_model, os.path.join(SNAPSHOT_PATH, save_name))
+                torch.save(r_net, os.path.join(SNAPSHOT_PATH, save_name))
 
                 loss_avg = AverageMeter()
                 cls_loss_avg = AverageMeter()
@@ -114,11 +114,11 @@ def get_dataset(files_vec=None, images_vec=None):
 
      
 def _model_init():
-    p_model = mtcnn.Pnet()
-    #p_model.apply(weight_init)
-    p_model.cuda(DEVICE_IDS[0])
-    p_model.train()
-    return p_model
+    r_net = mtcnn.Rnet()
+    #r_net.apply(weight_init)
+    r_net.cuda(DEVICE_IDS[0])
+    r_net.train()
+    return r_net
 
 
 class AverageMeter(object):

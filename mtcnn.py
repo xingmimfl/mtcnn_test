@@ -68,19 +68,33 @@ class Rnet(nn.Module):
             nn.Conv2d(in_channels=48, out_channels=64, kernel_size=2, stride=1, padding=0, bias=True),
             nn.PReLU(), 
         )
-        self.fc4 = nn.Linear(in_features=64*2*2, out_features=128)
+        self.fc4 = nn.Linear(in_features=64*3*3, out_features=128)
         self.fc5_1 = nn.Linear(in_features=128, out_features=1)
         self.fc5_2 = nn.Linear(in_features=128, out_features=4)
         self.fc5_3 = nn.Linear(in_features=128, out_features=10)
 
+
+        self.loss_func = Lossfunc()
+
     def forward(self, x):
         x = self.basenet(x)
+        #print("x.size():\t", x.size())
+        x = x.view(x.size(0), -1)
         x = self.fc4(x)
         fc5_1 = self.fc5_1(x)
+        fc5_1 = F.sigmoid(fc5_1)
         fc5_2 = self.fc5_2(x)
         fc5_3 = self.fc5_3(x)  
-
+        #print("fc5_1.size:\t", fc5_1.size())
+        #print("fc5_2.size:\t", fc5_2.size())
+        #print("fc5_3.size:\t", fc5_3.size())
         return fc5_1, fc5_2, fc5_3
+
+
+    def get_loss(self, x, bbox, cls_labels, flag):
+        cls_loss, bbox_loss, landmark_loss = self.loss_func(x, bbox, cls_labels, flag)
+        return cls_loss, bbox_loss, landmark_loss
+
 
 class ONet(nn.Module):
     def __init__(self):
@@ -145,12 +159,15 @@ class Lossfunc(nn.Module):
             2: landmark loss
          """
         conv4_1, conv4_2 = x[:2]
-        conv4_1 = conv4_1[:, :, 0, 0] #---size: [batch_size, 1]
-        conv4_2 = conv4_2[:, :, 0, 0] #---size: [batch_size, 4]
+        if len(conv4_1.size())==4:
+            conv4_1 = conv4_1[:, :, 0, 0] #---size: [batch_size, 1]
+        if len(conv4_2.size())==4:
+            conv4_2 = conv4_2[:, :, 0, 0] #---size: [batch_size, 4]
 
         if USE_LANDMARK:
             conv4_3 = x[2]
-            conv4_3 = conv4_3[:, :, 0, 0]
+            if len(conv4_3.size())==4:
+                conv4_3 = conv4_3[:, :, 0, 0]
         
         cls_loss=None; bbox_loss=None; landmark_loss=None 
         if flag==0:

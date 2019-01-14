@@ -1,0 +1,22 @@
+1 pos_xx.txt/neg_xx.txt/part_xx.txt 格式如下:
+
+12/positive/25 1 -0.04 0.07 0.07 0.07
+
+第一个列表示图片的存放地址
+第二个表示 class 类别：
+    1 -- postive class
+    0 -- negative class
+    -1 -- part/landmark  不参与cls loss的计算过程
+    
+后面的四列表示bbox的ground truth
+    pos_xx.txt, part_xx.txt 这四列是有值的
+    neg_xx.txt 后面这四列都是-1
+
+如果后面超过了4列，就是landmark的类型，landmark文件格式如下
+a_image_path -1 x1 y1 x2 y2 x3 y3 x4 y4 x5 y5
+
+II dataset.py的输出
+输出格式是(在一个batch中)
+    images : [image1, ...]
+    bbox : [[x1,y1,x2,y2],...] --注意这里，如果是landmarks, 那么就是10个数
+    label : [[1], ...]

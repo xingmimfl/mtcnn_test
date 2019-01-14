@@ -51,6 +51,75 @@ class Pnet(nn.Module):
         cls_loss, bbox_loss, landmark_loss = self.loss_func(x, bbox, cls_labels, flag)
         return cls_loss, bbox_loss, landmark_loss
 
+class Rnet(nn.Module):
+    def __init__(self):
+        super(Rnet, self).__init__()
+        self.basenet = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=28, kernel_size=3, stride=1, padding=0, bias=True),
+            nn.PReLU(),
+
+            nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+
+            nn.Conv2d(in_channels=28, out_channels=48, kernel_size=3, stride=1, padding=0, bias=True), 
+            nn.PReLU(),
+
+            nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+
+            nn.Conv2d(in_channels=48, out_channels=64, kernel_size=2, stride=1, padding=0, bias=True),
+            nn.PReLU(), 
+        )
+        self.fc4 = nn.Linear(in_features=64*2*2, out_features=128)
+        self.fc5_1 = nn.Linear(in_features=128, out_features=1)
+        self.fc5_2 = nn.Linear(in_features=128, out_features=4)
+        self.fc5_3 = nn.Linear(in_features=128, out_features=10)
+
+    def forward(self, x):
+        x = self.basenet(x)
+        x = self.fc4(x)
+        fc5_1 = self.fc5_1(x)
+        fc5_2 = self.fc5_2(x)
+        fc5_3 = self.fc5_3(x)  
+
+        return fc5_1, fc5_2, fc5_3
+
+class ONet(nn.Module):
+    def __init__(self):
+        super(Onet, self).__init__()
+        self.basenet = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=0, bias=True),
+            nn.PReLU(),             
+            
+            nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=0, bias=True),
+            nn.PReLU(),                         
+
+            nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, bias=True),
+            nn.PReLU(),
+
+            nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True),
+
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=2, stride=1, padding=0, bias=True),
+            nn.PReLU(),
+
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=1, stride=1, padding=0, bias=True),
+            nn.Dropout(0.25),
+            nn.PReLU(),            
+        ) 
+
+        self.conv6_1 = nn.Linear(in_features=256, out_features=1)
+        self.conv6_2 = nn.Linear(in_features=256, out_features=4)
+        self.conv6_3 = nn.Linear(in_features=256, out_features=10)
+
+    def forward(self, x):
+        x = self.basenet(x)
+        conv6_1 = self.conv6_1(x)
+        conv6_2 = self.conv6_2(x)
+        conv6_3 = self.conv6_3(x)
+        return conv6_1, conv6_2, conv6_3
+
 
 class Lossfunc(nn.Module):
     def __init__(self, cls_factor=1, bbox_factor=0.5, landmark_factor=0.5):

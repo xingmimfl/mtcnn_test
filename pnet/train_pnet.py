@@ -18,7 +18,7 @@ def main():
         cls_train_loader = get_dataset(files_vec=['pos_12.txt', 'neg_12.txt'])
         bbox_train_loader = get_dataset(files_vec=['pos_12.txt', 'part_12.txt'])
         if USE_LANDMARK:
-            landmark_train_loader = get_dataset(files_vec=['landmark_12.txt'])
+            landmark_train_loader = get_dataset(files_vec=['landmark_12_aug.txt'])
 
         #----data iter-----
         cls_train_iter = iter(cls_train_loader)

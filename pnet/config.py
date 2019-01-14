@@ -14,7 +14,7 @@ STACKS = 2
 
 NUM_WORKERS = 1
 
-USE_LANDMARK = False #--if uselandmarks during training
+USE_LANDMARK = True #--if uselandmarks during training
 #-----
 LEARNING_RATE = 0.0001
 MOMENTUM = 0.9

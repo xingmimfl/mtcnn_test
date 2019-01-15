@@ -96,7 +96,7 @@ class Rnet(nn.Module):
         return cls_loss, bbox_loss, landmark_loss
 
 
-class ONet(nn.Module):
+class Onet(nn.Module):
     def __init__(self):
         super(Onet, self).__init__()
         self.basenet = nn.Sequential(
@@ -108,17 +108,19 @@ class ONet(nn.Module):
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=0, bias=True),
             nn.PReLU(),                         
 
-            nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
+            nn.MaxPool2d(kernel_size=3, stride=2),
 
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=0, bias=True),
             nn.PReLU(),
 
-            nn.MaxPool2d(kernel_size=2, stride=2, ceil_mode=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
 
             nn.Conv2d(in_channels=64, out_channels=128, kernel_size=2, stride=1, padding=0, bias=True),
             nn.PReLU(),
+        )
 
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=1, stride=1, padding=0, bias=True),
+        self.conv5 = nn.Sequential(
+            nn.Linear(in_features=128 * 3 * 3, out_features=256),
             nn.Dropout(0.25),
             nn.PReLU(),            
         ) 
@@ -127,12 +129,21 @@ class ONet(nn.Module):
         self.conv6_2 = nn.Linear(in_features=256, out_features=4)
         self.conv6_3 = nn.Linear(in_features=256, out_features=10)
 
+        self.loss_func = Lossfunc()
+
     def forward(self, x):
         x = self.basenet(x)
+        x = x.view(x.size(0), -1)
+        x = self.conv5(x)
         conv6_1 = self.conv6_1(x)
+        conv6_1 = F.sigmoid(conv6_1)
         conv6_2 = self.conv6_2(x)
         conv6_3 = self.conv6_3(x)
         return conv6_1, conv6_2, conv6_3
+
+    def get_loss(self, x, bbox, cls_labels, flag):
+        cls_loss, bbox_loss, landmark_loss = self.loss_func(x, bbox, cls_labels, flag)
+        return cls_loss, bbox_loss, landmark_loss
 
 
 class Lossfunc(nn.Module):

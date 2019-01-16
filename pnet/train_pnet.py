@@ -42,6 +42,8 @@ def main():
         cls_loss_avg = AverageMeter()
         bbox_loss_avg = AverageMeter()
         landmark_loss_avg = AverageMeter()
+        acc1 = AverageMeter()
+
         for i in range(MAX_ITERS):
             scheduler.step() 
 
@@ -74,15 +76,19 @@ def main():
             #-----training, get loss, and back-propagation
             _images = Variable(_images.cuda(DEVICE_IDS[0]))
             _bbox = Variable(_bbox.cuda(DEVICE_IDS[0]))
-            _labels = Variable(_labels.cuda(DEVICE_IDS[0]))
+            _labels = _labels.cuda(DEVICE_IDS[0])
+            #_labels_var = Variable(_labels).cuda(DEVICE_IDS[0])
+            _labels_var = Variable(_labels)
             outputs = p_model(_images) #----model forward 
-            cls_loss, bbox_loss, landmark_loss = p_model.get_loss(outputs, _bbox, _labels, flag)
+            cls_loss, bbox_loss, landmark_loss = p_model.get_loss(outputs, _bbox, _labels_var, flag)
 
             loss = 0
             #if cls_loss is not None: 
             if flag==0:
                 loss += cls_loss
                 cls_loss_avg.update(cls_loss.data[0], BATCH_SIZE)
+                prec1 =  accuracy(outputs[0].data, _labels) 
+                acc1.update(prec1, BATCH_SIZE)
 
             #if bbox_loss is not None:
             if flag==1:
@@ -104,6 +110,7 @@ def main():
                 print("iter:%5d " % i, " loss:%.4e" % loss_avg.avg, " cls_loss:%.4e" % cls_loss_avg.avg, " bbox_loss:%.4e" % bbox_loss_avg.avg)
                 if USE_LANDMARK:
                     print("landmark_loss:%.4e" % landmark_loss_avg.avg)
+                print("classication accuracy: %.4e" % acc1.avg)
     
                 save_name = '_'.join([SUFFIX, "iter", str(i), '.model'])                
                 torch.save(p_model, os.path.join(SNAPSHOT_PATH, save_name))
@@ -112,6 +119,7 @@ def main():
                 cls_loss_avg = AverageMeter()
                 bbox_loss_avg = AverageMeter()
                 landmark_loss_avg = AverageMeter()
+                acc1 = AverageMeter()
                  
 def get_dataset(files_vec=None, images_vec=None):
     trainset = dataset.ImageSets(isTrain=True, imageSize=12, files_vec=files_vec, images_vec=images_vec)
@@ -145,6 +153,15 @@ class AverageMeter(object):
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
+
+def accuracy(output, target):
+    output = output[:,:,0,0] #---[batch_size, 1, 1, 1] ---> [batch_size, 1] 
+    batch_size = output.size(0)
+    target = target.long() 
+    output = (output >= 0.5).type_as(target)
+    correct = output.eq(target)
+    res = correct.sum() * 100.0 / batch_size 
+    return res
 
 if __name__=="__main__":
     main()

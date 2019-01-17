@@ -72,16 +72,16 @@ def detect_face_12net(cls_prob,roi,out_side,scale,width,height,threshold):
     stride = 0
     if out_side != 1:
         stride = float(in_side-12)/(out_side-1)
-    (x,y) = np.where(cls_prob>=threshold)
-    boundingbox = np.array([x,y]).T
+    (row, col) = np.where(cls_prob>=threshold) #---y means row, x means col
+    boundingbox = np.array([row,col]).T #--index in the  feature map
     bb1 = np.fix((stride * (boundingbox) + 0 ) * scale)
     bb2 = np.fix((stride * (boundingbox) + 11) * scale)
     boundingbox = np.concatenate((bb1,bb2),axis = 1)
-    dx1 = roi[0][x,y]
-    dx2 = roi[1][x,y]
-    dx3 = roi[2][x,y]
-    dx4 = roi[3][x,y]
-    score = np.array([cls_prob[x,y]]).T
+    dx1 = roi[0][row, col]
+    dx2 = roi[1][row, col]
+    dx3 = roi[2][row, col]
+    dx4 = roi[3][row, col]
+    score = np.array([cls_prob[row, col]]).T
     offset = np.array([dx1,dx2,dx3,dx4]).T
     boundingbox = boundingbox + offset*12.0*scale
     rectangles = np.concatenate((boundingbox,score),axis=1)
@@ -110,7 +110,7 @@ Output:
 	rectangles: possible face positions
 '''
 def filter_face_24net(cls_prob,roi,rectangles,width,height,threshold):
-    prob = cls_prob[:,1]
+    prob = cls_prob
     pick = np.where(prob>=threshold)
     rectangles = np.array(rectangles)
     x1  = rectangles[pick,0]
@@ -155,7 +155,7 @@ Output:
 	rectangles: face positions and landmarks
 '''
 def filter_face_48net(cls_prob,roi,pts,rectangles,width,height,threshold):
-    prob = cls_prob[:,1]
+    prob = cls_prob
     pick = np.where(prob>=threshold)
     rectangles = np.array(rectangles)
     x1  = rectangles[pick,0]

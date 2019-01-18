@@ -99,13 +99,6 @@ def NMS_torch(rectangles, threshold, type):
         i = order[0] 
         keep.append(i)
          
-
-
-
-
-
-
-       
 def detect_face_12net(cls_prob, roi, out_side, scale, width, height, threshold):
     """
     Function:
@@ -161,114 +154,112 @@ def detect_face_12net(cls_prob, roi, out_side, scale, width, height, threshold):
     rectangles = rectangles.index_select(0, index)
     rectangles = rectangles.numpy().tolist()
     return NMS(rectangles,0.5,'iou')
-'''
-Function:
-	Filter face position and calibrate bounding box on 12net's output
-Input:
-	cls_prob  : softmax feature map for face classify
-	roi_prob  : feature map for regression
-	rectangles: 12net's predict
-	width     : image's origin width
-	height    : image's origin height
-	threshold : 0.6 can have 97% recall rate
-Output:
-	rectangles: possible face positions
-'''
-def filter_face_24net(cls_prob,roi,rectangles,width,height,threshold):
+
+
+def filter_face_24net(cls_prob, roi, rectangles, width, height, threshold):
+    """
+    Function:
+        Filter face position and calibrate bounding box on 12net's output
+    Input:
+        cls_prob  : softmax feature map for face classify. size: [N, 1]
+        roi_prob  : feature map for regressiona, size:[N, 4]
+        rectangles: 12net's predict
+        width     : image's origin width
+        height    : image's origin height
+        threshold : 0.6 can have 97% recall rate
+    Output:
+        rectangles: possible face positions
+    """
     prob = cls_prob
-    pick = np.where(prob>=threshold)
-    rectangles = np.array(rectangles)
-    x1  = rectangles[pick,0]
-    y1  = rectangles[pick,1]
-    x2  = rectangles[pick,2]
-    y2  = rectangles[pick,3]
-    sc  = np.array([prob[pick]]).T
-    dx1 = roi[pick,0]
-    dx2 = roi[pick,1]
-    dx3 = roi[pick,2]
-    dx4 = roi[pick,3]
-    w   = x2-x1
-    h   = y2-y1
-    x1  = np.array([(x1+dx1*w)[0]]).T
-    y1  = np.array([(y1+dx2*h)[0]]).T
-    x2  = np.array([(x2+dx3*w)[0]]).T
-    y2  = np.array([(y2+dx4*h)[0]]).T
-    rectangles = np.concatenate((x1,y1,x2,y2,sc),axis=1)
-    rectangles = rect2square(rectangles)
-    pick = []
-    for i in range(len(rectangles)):
-        x1 = int(max(0     ,rectangles[i][0]))
-        y1 = int(max(0     ,rectangles[i][1]))
-        x2 = int(min(width ,rectangles[i][2]))
-        y2 = int(min(height,rectangles[i][3]))
-        sc = rectangles[i][4]
-        if x2>x1 and y2>y1:
-            pick.append([x1,y1,x2,y2,sc])
-    return NMS(pick,0.7,'iou')
-'''
-Function:
-	Filter face position and calibrate bounding box on 12net's output
-Input:
-	cls_prob  : cls_prob[1] is face possibility
-	roi       : roi offset
-	pts       : 5 landmark
-	rectangles: 12net's predict, rectangles[i][0:3] is the position, rectangles[i][4] is score
-	width     : image's origin width
-	height    : image's origin height
-	threshold : 0.7 can have 94% recall rate on CelebA-database
-Output:
-	rectangles: face positions and landmarks
-'''
-def filter_face_48net(cls_prob,roi,pts,rectangles,width,height,threshold):
+    binary_tensor = (prob>=threshold)
+    indexes = binary_tensor.nonzero()[0] #---rows
+    if indexes.sum() <= 0: return []
+    rectangles = rectangles.index_select(0, indexes)
+    roi = roi.index_select(0, indexes)
+
+    w = (rectangles[:, 2] - rectangles[:, 0]).view(-1, 1) #---[N]--->[N, 1]
+    h = (rectangles[:, 3] - rectangles[:, 1]).view(-1, 1)
+
+    roi[:, 0::2] = torch.mul(roi[:, 0::2], w)
+    roi[:, 1::2] = torch.mul(roi[:, 1::2], h)
+    rectangles[:, :4] = rectangles[:, :4] + roi
+    rectangles = rect2square_torch(rectangles)
+    
+    zeros_tensor = torch.zeros([1])
+    width_tensor = torch.Tensor([width]).float()
+    height_tensor = torch.Tensor([height]).float()
+
+    rectangles[:, :2] = torch.max(zeros_tensor, rectangles[:, :2]).int()
+    rectangles[:, 2] = torch.min(width_tensor, rectangles[:, 2]).int()
+    rectangles[:, 3] = torch.min(height_tensor, rectangles[:, 3]).int()
+
+    index1 = (rectangles[:, 2] >= rectangles[:, 0]) #---x2 > x1
+    index2 = (rectangles[:, 3] >= rectangles[:, 1]) #---y2 > y1
+    index = (index1 & index2).nonzero().squeeze()
+    rectangles = rectangles.index_select(0, index)
+    rectangles = rectangles.numpy().tolist()
+    return NMS(rectangles,0.7,'iou')
+
+def filter_face_48net(cls_prob, roi, pts, rectangles, width, height, threshold):
+    """
+    Function:
+        Filter face position and calibrate bounding box on 12net's output
+    Input:
+        cls_prob  : cls_prob[1] is face possibility
+        roi       : roi offset
+        pts       : 5 landmark
+        rectangles: 12net's predict, rectangles[i][0:3] is the position, rectangles[i][4] is score
+        width     : image's origin width
+        height    : image's origin height
+        threshold : 0.7 can have 94% recall rate on CelebA-database
+    Output:
+        rectangles: face positions and landmarks
+    """
     prob = cls_prob
-    pick = np.where(prob>=threshold)
-    rectangles = np.array(rectangles)
-    x1  = rectangles[pick,0]
-    y1  = rectangles[pick,1]
-    x2  = rectangles[pick,2]
-    y2  = rectangles[pick,3]
-    sc  = np.array([prob[pick]]).T
-    dx1 = roi[pick,0]
-    dx2 = roi[pick,1]
-    dx3 = roi[pick,2]
-    dx4 = roi[pick,3]
-    w   = x2-x1
-    h   = y2-y1
-    pts0= np.array([(w*pts[pick,0]+x1)[0]]).T
-    pts1= np.array([(h*pts[pick,5]+y1)[0]]).T
-    pts2= np.array([(w*pts[pick,1]+x1)[0]]).T
-    pts3= np.array([(h*pts[pick,6]+y1)[0]]).T
-    pts4= np.array([(w*pts[pick,2]+x1)[0]]).T
-    pts5= np.array([(h*pts[pick,7]+y1)[0]]).T
-    pts6= np.array([(w*pts[pick,3]+x1)[0]]).T
-    pts7= np.array([(h*pts[pick,8]+y1)[0]]).T
-    pts8= np.array([(w*pts[pick,4]+x1)[0]]).T
-    pts9= np.array([(h*pts[pick,9]+y1)[0]]).T
-    x1  = np.array([(x1+dx1*w)[0]]).T
-    y1  = np.array([(y1+dx2*h)[0]]).T
-    x2  = np.array([(x2+dx3*w)[0]]).T
-    y2  = np.array([(y2+dx4*h)[0]]).T
-    rectangles=np.concatenate((x1,y1,x2,y2,sc,pts0,pts1,pts2,pts3,pts4,pts5,pts6,pts7,pts8,pts9),axis=1)
-    pick = []
-    for i in range(len(rectangles)):
-        x1 = int(max(0     ,rectangles[i][0]))
-        y1 = int(max(0     ,rectangles[i][1]))
-        x2 = int(min(width ,rectangles[i][2]))
-        y2 = int(min(height,rectangles[i][3]))
-        if x2>x1 and y2>y1:
-            pick.append([x1,y1,x2,y2,rectangles[i][4],
-                rectangles[i][5],rectangles[i][6],rectangles[i][7],rectangles[i][8],rectangles[i][9],rectangles[i][10],rectangles[i][11],rectangles[i][12],rectangles[i][13],rectangles[i][14]])
-    return NMS(pick,0.7,'iom')
-'''
-Function:
-	calculate multi-scale and limit the maxinum side to 1000 
-Input: 
-	img: original image
-Output:
-	pr_scale: limit the maxinum side to 1000, < 1.0
-	scales  : Multi-scale
-'''
+    binary_tensor = (prob>=threshold)
+    indexes = binary_tensor.nonzero()[0]
+
+    rectangles = rectangles.index_select(0, indexes)
+    roi = roi.index_select(0, indexes)
+    w = (rectangles[:, 2] - rectangles[:, 0]).view(-1, 1)
+    h = (rectangles[:, 3] - rectangles[:, 1]).view(-1, 1)
+
+    roi[:, 0::2] = torch.mul(roi[:, 0::2], w)
+    roi[:, 1::2] = torch.mul(roi[:, 1::2], h)
+    rectangles[:, :4] = rectangles[:, :4] + roi
+
+    pts[:, 0::2] = torch.mul(pts[:, 0::2], w)
+    pts[:, 0::2] = torch.add(pts[:, 0::2], rectangles[:, 0].view(-1,1)) 
+    pts[:, 1::2] = torch.mul(pts[:, 1::2], h)
+    pts[:, 1::2] = torch.add(pts[:, 1::2], rectangles[:, 1].view(-1,1))
+
+    #-----
+    zeros_tensor = torch.zeros([1])
+    width_tensor = torch.Tensor([width]).float()
+    height_tensor = torch.Tensor([height]).float()
+
+    rectangles[:, :2] = torch.max(zeros_tensor, rectangles[:, :2]).int()
+    rectangles[:, 2] = torch.min(width_tensor, rectangles[:, 2]).int()
+    rectangles[:, 3] = torch.min(height_tensor, rectangles[:, 3]).int()
+
+    index1 = (rectangles[:, 2] >= rectangles[:, 0]) #---x2 > x1
+    index2 = (rectangles[:, 3] >= rectangles[:, 1]) #---y2 > y1
+    
+    #---concat rectangles and pts
+    rectangles = torch.cat([rectangles, pts], dim=1) 
+    rectangles = rectangles.numpy()
+    return NMS(rectangles,0.7,'iom')
+
 def calculateScales(img):
+    """
+    Function:
+        calculate multi-scale and limit the maxinum side to 1000
+    Input:
+        img: original image
+    Output:
+        pr_scale: limit the maxinum side to 1000, < 1.0
+        scales  : Multi-scale
+    """
     caffe_img = img.copy()
     h, w, c = caffe_img.shape
     #multi-scale

@@ -57,6 +57,7 @@ if __name__=="__main__":
         rectangles.extend(rectangle)
 
     rectangles = tools.NMS(rectangles, 0.7, 'iou')
+    rectangles = torch.from_numpy(np.asarray(rectangles)).float()
     """
     for a_rect in rectangles:
         a_rect = [int(x) for x in a_rect]
@@ -82,9 +83,10 @@ if __name__=="__main__":
     rnet_input = Variable(rnet_input).cuda(device_id)
     rnet_outputs = rnet(rnet_input)      
     fc5_1, fc5_2, fc5_3 = rnet_outputs
-    fc5_1 = fc5_1.cpu().data.numpy()
-    fc5_2 = fc5_2.cpu().data.numpy()
+    fc5_1 = fc5_1.cpu().data
+    fc5_2 = fc5_2.cpu().data
     rectangles = tools.filter_face_24net(fc5_1, fc5_2, rectangles, original_w, original_h, threshold[1])  
+    rectangles = torch.from_numpy(np.asarray(rectangles)).float() 
     """
     for a_rect in rectangles:
         a_rect = [int(x) for x in a_rect]
@@ -110,9 +112,9 @@ if __name__=="__main__":
     onet_input = Variable(onet_input).cuda(device_id)
     onet_outputs = onet(onet_input)
     conv6_1, conv6_2, conv6_3 = onet_outputs
-    conv6_1 = conv6_1.cpu().data.numpy()
-    conv6_2 = conv6_2.cpu().data.numpy()
-    conv6_3 = conv6_3.cpu().data.numpy()
+    conv6_1 = conv6_1.cpu().data
+    conv6_2 = conv6_2.cpu().data
+    conv6_3 = conv6_3.cpu().data
     rectangles = tools.filter_face_48net(conv6_1, conv6_2, conv6_3, rectangles, original_w, original_h, threshold[2]) 
    
 

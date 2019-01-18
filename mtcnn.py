@@ -196,7 +196,7 @@ class Lossfunc(nn.Module):
         cls_labels: [batch_size,1]
         """ 
         loss = self.cls_loss_func(x, cls_labels)     
-        return loss * self.cls_factor
+        return loss
 
     def bbox_loss(self, x, bbox):
         """
@@ -204,7 +204,7 @@ class Lossfunc(nn.Module):
         bbox: [batch_size, 4]
         """
         loss = self.bbox_loss_func(x, bbox) / 2.0
-        return loss * self.bbox_factor
+        return loss
 
 
     def landmark_loss(self, x, bbox):
@@ -214,3 +214,10 @@ class Lossfunc(nn.Module):
         """
         loss = self.landmark_loss_func(x, bbox) / 2.0
         return loss
+
+if __name__=="__main__":
+    x = torch.rand(1, 3, 345, 234)
+    x = Variable(x)
+    model = Pnet()
+    x = model(x)
+    print(x)

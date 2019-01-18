@@ -2,6 +2,7 @@ import sys
 from operator import itemgetter
 import numpy as np
 import cv2
+import torch
 
 '''
 Function:
@@ -18,6 +19,24 @@ def rect2square(rectangles):
     rectangles[:,0] = rectangles[:,0] + w*0.5 - l*0.5
     rectangles[:,1] = rectangles[:,1] + h*0.5 - l*0.5 
     rectangles[:,2:4] = rectangles[:,0:2] + np.repeat([l], 2, axis = 0).T 
+    return rectangles
+
+'''
+Function:
+    change rectangles into squares (matrix version)
+Input:
+    rectangles:  torch.Tensor
+        rectangles[i][0:3] is the position, rectangles[i][4] is score
+Output:
+    squares: same as input
+'''
+def rect2square_torch(rectangles):
+    w = rectangles[:,2] - rectangles[:,0]
+    h = rectangles[:,3] - rectangles[:,1]
+    l, max_index = torch.max(torch.stack([w, h], dim=1), dim=1)
+    rectangles[:,0] = rectangles[:,0] + w*0.5 - l*0.5
+    rectangles[:,1] = rectangles[:,1] + h*0.5 - l*0.5
+    rectangles[:,2:4] = rectangles[:,0:2] + l.view(-1, 1).repeat(1, 2)
     return rectangles
 '''
 Function:
@@ -55,44 +74,93 @@ def NMS(rectangles,threshold,type):
         I = I[np.where(o<=threshold)[0]]
     result_rectangle = boxes[pick].tolist()
     return result_rectangle
-'''
-Function:
-	Detect face position and calibrate bounding box on 12net feature map(matrix version)
-Input:
-	cls_prob : softmax feature map for face classify
-	roi      : feature map for regression
-	out_side : feature map's largest size
-	scale    : current input image scale in multi-scales
-	width    : image's origin width
-	height   : image's origin height
-	threshold: 0.6 can have 99% recall rate
-'''
-def detect_face_12net(cls_prob,roi,out_side,scale,width,height,threshold):
+
+def NMS_torch(rectangles, threshold, type):
+    """
+    Function:
+        apply NMS(non-maximum suppression) on ROIs in same scale(matrix version)
+    Input:
+        rectangles: torch.floattensor. rectangles[i][0:3] is the position, rectangles[i][4] is score
+    Output:
+        rectangles: same as input
+    """
+    if rectangles.size(0)==0:
+        return rectangles
+
+    x1 = rectangles[:, 0]
+    y1 = rectangles[:, 1]
+    x2 = rectangles[:, 2]
+    y2 = rectangles[:, 3]
+    score = rectangles[:, 4]
+    area = torch.mul(x2 - x1 + 1.0, y2 - y1 + 1)  
+    _, order = torch.sort(score, descending=True)
+    keep = []
+    while order.size(0) > 0:
+        i = order[0] 
+        keep.append(i)
+         
+
+
+
+
+
+
+       
+def detect_face_12net(cls_prob, roi, out_side, scale, width, height, threshold):
+    """
+    Function:
+        Detect face position and calibrate bounding box on 12net feature map(matrix version)
+    Input:
+        cls_prob : softmax feature map for face classify
+        roi      : feature map for regression
+        out_side : feature map's largest size
+        scale    : current input image scale in multi-scales
+        width    : image's origin width
+        height   : image's origin height
+        threshold: 0.6 can have 99% recall rate
+    """
     stride = 2
-    (row, col) = np.where(cls_prob>=threshold) #---y means row, x means col
-    boundingbox = np.array([row,col]).T #--index in the  feature map
-    bb1 = np.fix((stride * (boundingbox) + 0 ) * scale)
-    bb2 = np.fix((stride * (boundingbox) + 12) * scale)
-    boundingbox = np.concatenate((bb1,bb2),axis = 1)
-    dx1 = roi[0][row, col]
-    dx2 = roi[1][row, col]
-    dx3 = roi[2][row, col]
-    dx4 = roi[3][row, col]
-    score = np.array([cls_prob[row, col]]).T
-    offset = np.array([dx1,dx2,dx3,dx4]).T
-    boundingbox = boundingbox + offset*12.0*scale
-    rectangles = np.concatenate((boundingbox,score),axis=1)
-    rectangles = rect2square(rectangles)
-    pick = []
-    for i in range(len(rectangles)):
-        x1 = int(max(0     ,rectangles[i][0]))
-        y1 = int(max(0     ,rectangles[i][1]))
-        x2 = int(min(width ,rectangles[i][2]))
-        y2 = int(min(height,rectangles[i][3]))
-        sc = rectangles[i][4]
-        if x2>x1 and y2>y1:
-            pick.append([x1,y1,x2,y2,sc])
-    return NMS(pick,0.5,'iou')
+
+    binary_tensor = (cls_prob >= threshold)
+    indexes = binary_tensor.nonzero()
+    if indexes.sum() <= 0: return []
+    indexes = indexes.float() #---torch.LongTensor to torch.floatTensor, torch.round not support longTensor
+    bb1 = torch.round((stride * indexes + 0) * scale)
+    bb2 = torch.round((stride * indexes + 12) * scale) 
+    boundingbox = torch.cat([bb1, bb2], dim=1)
+    
+    #dx1 = roi[0][binary_tensor].unsqueeze(1)
+    #dx2 = roi[1][binary_tensor].unsqueeze(1)
+    #dx3 = roi[2][binary_tensor].unsqueeze(1)
+    #dx4 = roi[3][binary_tensor].unsqueeze(1)
+    #offset = torch.cat([dx1, dx2, dx3, dx4], dim=1)
+
+    dx1 = roi[0][binary_tensor]
+    dx2 = roi[1][binary_tensor]
+    dx3 = roi[2][binary_tensor]
+    dx4 = roi[3][binary_tensor]
+    offset = torch.stack([dx1, dx2, dx3, dx4], dim=1)
+
+    score = cls_prob[binary_tensor].unsqueeze(1)
+    boundingbox = boundingbox + offset * 12.0 * scale
+    rectangles = torch.cat([boundingbox, score], dim=1) 
+    
+    rectangles = rect2square_torch(rectangles)
+
+    zeros_tensor = torch.zeros([1])
+    width_tensor = torch.Tensor([width]).float()
+    height_tensor = torch.Tensor([height]).float()
+
+    rectangles[:, :2] = torch.max(zeros_tensor, rectangles[:, :2]).int() 
+    rectangles[:, 2] = torch.min(width_tensor, rectangles[:, 2]).int()
+    rectangles[:, 3] = torch.min(height_tensor, rectangles[:, 3]).int() 
+
+    index1 = (rectangles[:, 2] >= rectangles[:, 0]) #---x2 > x1
+    index2 = (rectangles[:, 3] >= rectangles[:, 1]) #---y2 > y1
+    index = (index1 & index2).nonzero().squeeze()
+    rectangles = rectangles.index_select(0, index)
+    rectangles = rectangles.numpy().tolist()
+    return NMS(rectangles,0.5,'iou')
 '''
 Function:
 	Filter face position and calibrate bounding box on 12net's output

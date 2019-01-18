@@ -6,10 +6,10 @@ from torch.autograd import Variable
 import mtcnn
 import cv2
 import numpy as np
-import tools_matrix as tools
+import tools_matrix_torch as tools
 
 device_id = 3
-threshold = [0.3, 0.4,0.5]
+threshold = [0.4, 0.4,0.5]
 
 if __name__=="__main__":
     image_name = "juzhao3.jpeg"
@@ -35,9 +35,11 @@ if __name__=="__main__":
     image_copy = image.copy()
     #----get scales----
     scales = tools.calculateScales(image) 
+    print("scales")
+    print(scales)
 
     #----pnet----
-    pnet_outs = []
+    rectangles = []
     for scale in scales:
         hs = int(original_h * scale)
         ws = int(original_w * scale)
@@ -47,19 +49,11 @@ if __name__=="__main__":
         scale_image = torch.unsqueeze(scale_image, 0) #----[1, 3, W, H]
         scale_image = Variable(scale_image).float().cuda(device_id)
         conv4_1, conv4_2, _  = pnet(scale_image)  
-        conv4_1 = conv4_1.cpu().data.numpy()
-        conv4_2 = conv4_2.cpu().data.numpy()
-        pnet_outs.append([conv4_1, conv4_2])
-
-    image_num = len(pnet_outs)
-    rectangles = []
-    for i in range(image_num):
-        cls_prob, roi = pnet_outs[i]
-        cls_prob = cls_prob[0][0] #----[1, 1, w, h] ----> [w, h]
-        roi = roi[0] #---[1,4, w, h] -----> [4, w, h]
-        out_w, out_h = cls_prob.shape
+        cls_prob = conv4_1[0][0].cpu().data #----[1, 1, w, h] ----> [w, h]; varible to torch.tensor
+        roi = conv4_2[0].cpu().data #---[1,4, w, h] -----> [4, w, h]; variable to torch.tensor
+        out_w, out_h = cls_prob.size()
         out_side = max(out_w, out_h)
-        rectangle = tools.detect_face_12net(cls_prob, roi, out_side, 1/scales[i], original_w, original_h, threshold[0]) 
+        rectangle = tools.detect_face_12net(cls_prob, roi, out_side, 1.0/scale, original_w, original_h, threshold[0]) 
         rectangles.extend(rectangle)
 
     rectangles = tools.NMS(rectangles, 0.7, 'iou')

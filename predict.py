@@ -6,15 +6,15 @@ from torch.autograd import Variable
 import mtcnn
 import cv2
 import numpy as np
-import tools_matrix as tools
+import tools_matrix_torch as tools
 
 device_id = 3
-threshold = [0.3, 0.4,0.5]
+threshold = [0.7, 0.7, 0.95]
 
 if __name__=="__main__":
     image_name = "juzhao3.jpeg"
     pnet = mtcnn.Pnet()
-    pnet.load_state_dict(torch.load("pnet/face_detect_190116_version3_iter_1326000_.pth"))
+    pnet.load_state_dict(torch.load("pnet/face_detect_power_bbox2_retrain_iter_999000_.pth"))
     pnet.eval()
     pnet = pnet.cuda(device_id)
 
@@ -35,41 +35,34 @@ if __name__=="__main__":
     image_copy = image.copy()
     #----get scales----
     scales = tools.calculateScales(image) 
+    print("scales")
+    print(scales)
 
     #----pnet----
-    pnet_outs = []
+    rectangles = []
     for scale in scales:
         hs = int(original_h * scale)
         ws = int(original_w * scale)
         scale_image = cv2.resize(image,(ws,hs)) / 255.0 #---resize and rescale
         scale_image = scale_image.transpose((2, 0, 1))  
         scale_image = torch.from_numpy(scale_image.copy())
-        scale_image = torch.unsqueeze(scale_image, 0) #----[1, 3, W, H]
+        scale_image = torch.unsqueeze(scale_image, 0) #----[1, 3, H, W]
         scale_image = Variable(scale_image).float().cuda(device_id)
         conv4_1, conv4_2, _  = pnet(scale_image)  
-        conv4_1 = conv4_1.cpu().data.numpy()
-        conv4_2 = conv4_2.cpu().data.numpy()
-        pnet_outs.append([conv4_1, conv4_2])
-
-    image_num = len(pnet_outs)
-    rectangles = []
-    for i in range(image_num):
-        cls_prob, roi = pnet_outs[i]
-        cls_prob = cls_prob[0][0] #----[1, 1, w, h] ----> [w, h]
-        roi = roi[0] #---[1,4, w, h] -----> [4, w, h]
-        out_w, out_h = cls_prob.shape
+        cls_prob = conv4_1[0][0].cpu().data #----[1, 1, h, w] ----> [h, w]; varible to torch.tensor
+        roi = conv4_2[0].cpu().data #---[1,4, h, w] -----> [4, h, w]; variable to torch.tensor
+        out_w, out_h = cls_prob.size()
         out_side = max(out_w, out_h)
-        rectangle = tools.detect_face_12net(cls_prob, roi, out_side, 1/scales[i], original_w, original_h, threshold[0]) 
+        rectangle = tools.detect_face_12net(cls_prob, roi, out_side, 1.0/scale, original_w, original_h, threshold[0]) 
         rectangles.extend(rectangle)
 
     rectangles = tools.NMS(rectangles, 0.7, 'iou')
-    """
-    for a_rect in rectangles:
-        a_rect = [int(x) for x in a_rect]
-        x1, y1, x2, y2, conf = a_rect
-        cv2.rectangle(image_copy, (x1,y1), (x2, y2), (0, 255, 0), 2)
-    cv2.imwrite("pnet.jpg", image_copy)
-    """
+    rectangles = torch.from_numpy(np.asarray(rectangles)).float()
+    #for a_rect in rectangles:
+    #    a_rect = [int(x) for x in a_rect]
+    #    x1, y1, x2, y2, conf = a_rect
+    #    cv2.rectangle(image_copy, (x1,y1), (x2, y2), (0, 255, 0), 2)
+    #cv2.imwrite("pnet.jpg", image_copy)
 
     #---rnet-----
     num_of_rects = len(rectangles)
@@ -87,18 +80,16 @@ if __name__=="__main__":
 
     rnet_input = Variable(rnet_input).cuda(device_id)
     rnet_outputs = rnet(rnet_input)      
-    fc5_1, fc5_2, fc5_3 = rnet_outputs
-    fc5_1 = fc5_1.cpu().data.numpy()
-    fc5_2 = fc5_2.cpu().data.numpy()
+    fc5_1, fc5_2, _ = rnet_outputs
+    fc5_1 = fc5_1.cpu().data
+    fc5_2 = fc5_2.cpu().data
     rectangles = tools.filter_face_24net(fc5_1, fc5_2, rectangles, original_w, original_h, threshold[1])  
-    """
-    for a_rect in rectangles:
-        a_rect = [int(x) for x in a_rect]
-        x1, y1, x2, y2, conf = a_rect
-        cv2.rectangle(image_copy, (x1,y1), (x2, y2), (0, 255, 0), 2)
-    cv2.imwrite("rnet.jpg", image_copy)    
-    """
-
+    rectangles = torch.from_numpy(np.asarray(rectangles)).float() 
+    #for a_rect in rectangles:
+    #    a_rect = [int(x) for x in a_rect]
+    #    x1, y1, x2, y2, conf = a_rect
+    #    cv2.rectangle(image, (x1,y1), (x2, y2), (0, 255, 0), 2)
+    #cv2.imwrite("rnet.jpg", image)
     #----Onet----
     num_of_rects = len(rectangles)
     onet_input = torch.zeros(num_of_rects, 3, 48, 48)
@@ -116,9 +107,9 @@ if __name__=="__main__":
     onet_input = Variable(onet_input).cuda(device_id)
     onet_outputs = onet(onet_input)
     conv6_1, conv6_2, conv6_3 = onet_outputs
-    conv6_1 = conv6_1.cpu().data.numpy()
-    conv6_2 = conv6_2.cpu().data.numpy()
-    conv6_3 = conv6_3.cpu().data.numpy()
+    conv6_1 = conv6_1.cpu().data
+    conv6_2 = conv6_2.cpu().data
+    conv6_3 = conv6_3.cpu().data
     rectangles = tools.filter_face_48net(conv6_1, conv6_2, conv6_3, rectangles, original_w, original_h, threshold[2]) 
    
 

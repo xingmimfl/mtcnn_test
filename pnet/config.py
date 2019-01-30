@@ -8,7 +8,7 @@ DEBUG = True
 
 DATA_PATH = "./12"
 
-TRAIN_OUT_ITER = 1000
+TRAIN_OUT_ITER = 5000
 TEST_OUT_ITER = 3200
 STACKS = 2
 
@@ -16,15 +16,15 @@ NUM_WORKERS = 8
 
 USE_LANDMARK = True #--if uselandmarks during training
 #-----
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.001
 MOMENTUM = 0.9
 WEIGHT_DECAY = 0.004
 GAMMA = 0.8
 STEP_SIZE = 100000
-MAX_ITERS = 800000
+MAX_ITERS = 1500000
 SUFFIX = 'combining_dataloader_190129'
 BATCH_SIZE = 256
-DEVICE_IDS = [2]
+DEVICE_IDS = [4]
 #------
 
 TEST_DIR = os.path.join(DATA_PATH, 'face_pics', '002')

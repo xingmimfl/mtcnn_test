@@ -49,7 +49,7 @@ def main():
             #-----training, get loss, and back-propagation
             _images = Variable(_images.cuda(DEVICE_IDS[0]))
             #_bbox = Variable(_bbox.cuda(DEVICE_IDS[0]))
-            _bbox = [Variable(x.cuda(DEVICE_IDS[0])) for x in _bbox]
+            _bbox = Variable(_bbox.cuda(DEVICE_IDS[0]))
             _labels = _labels.cuda(DEVICE_IDS[0])
             _labels_var = Variable(_labels)
             outputs = p_model(_images) #----model forward 

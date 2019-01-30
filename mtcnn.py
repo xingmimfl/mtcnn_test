@@ -191,12 +191,6 @@ class Lossfunc(nn.Module):
 
         
         loss_cls = None; loss_bbox=None; loss_landmark=None
-        #print(bbox)
-        #print("=============================")
-        #print(cls_labels)
-        #print("+++++++++++++++++++")
-        #print(landmark_index)
-        #print("PPPPPPPPPPPPPPPPPPPPP")
         if len(cls_index.size()) > 0:
             cls_index = cls_index[:, 0]
             cls_labels_select = torch.index_select(cls_labels, 0, cls_index).float()
@@ -204,20 +198,14 @@ class Lossfunc(nn.Module):
             loss_cls = self.cls_loss(conv4_1_select, cls_labels_select)
  
         if len(bbox_index.size()) > 0:
-            bbox_index = bbox_index[:,0]
-            bbox_vecs = []
-            for a_index in bbox_index:
-                bbox_vecs.append(bbox[a_index]) 
-            bbox_select = torch.stack(bbox_vecs, 0) 
+            bbox_index = bbox_index[:, 0]
+            bbox_select = torch.index_select(bbox, 0, bbox_index)[:, :4]
             conv4_2_select = torch.index_select(conv4_2, 0, bbox_index)
             loss_bbox = self.bbox_loss(conv4_2_select, bbox_select)
 
         if len(landmark_index.size()) > 0:
             landmark_index = landmark_index[:, 0]            
-            landmark_vecs = []
-            for a_index in landmark_index:
-                landmark_vecs.append(bbox[a_index])
-            landmark_select = torch.stack(landmark_vecs, 0) 
+            landmark_select = torch.index_select(bbox, 0, landmark_index)
             conv4_3_select = torch.index_select(conv4_3, 0, landmark_index) 
             loss_landmark = self.landmark_loss(conv4_3_select, landmark_select) 
 

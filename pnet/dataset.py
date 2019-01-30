@@ -81,7 +81,7 @@ def detection_collate(batch):
         labels.append(sample[2]) 
         image_paths.append(sample[3])
     #return torch.stack(imgs, 0), torch.stack(targets, 0), torch.stack(labels, 0), image_paths
-    return torch.stack(imgs, 0), targets, torch.stack(labels, 0), image_paths
+    return torch.stack(imgs, 0), torch.stack(targets, 0), torch.stack(labels, 0), image_paths
 
 
 if __name__=="__main__":

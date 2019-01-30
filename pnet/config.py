@@ -21,10 +21,10 @@ MOMENTUM = 0.9
 WEIGHT_DECAY = 0.004
 GAMMA = 0.8
 STEP_SIZE = 100000
-MAX_ITERS = 8000000
-SUFFIX = 'face_detect_190116_version3'
+MAX_ITERS = 800000
+SUFFIX = 'combining_dataloader_190129'
 BATCH_SIZE = 256
-DEVICE_IDS = [4]
+DEVICE_IDS = [2]
 #------
 
 TEST_DIR = os.path.join(DATA_PATH, 'face_pics', '002')

@@ -67,7 +67,7 @@ class ImageSets(Dataset):
 
         image = torch.from_numpy(image).float()
         a_bbox = torch.from_numpy(a_bbox).float() #---turn into tensor
-        a_label = torch.from_numpy(a_label).float()
+        a_label = torch.from_numpy(a_label).int()
         return image, a_bbox, a_label, a_image_path
 
 def detection_collate(batch):
@@ -80,7 +80,8 @@ def detection_collate(batch):
         targets.append(sample[1])
         labels.append(sample[2]) 
         image_paths.append(sample[3])
-    return torch.stack(imgs, 0), torch.stack(targets, 0), torch.stack(labels, 0), image_paths
+    #return torch.stack(imgs, 0), torch.stack(targets, 0), torch.stack(labels, 0), image_paths
+    return torch.stack(imgs, 0), targets, torch.stack(labels, 0), image_paths
 
 
 if __name__=="__main__":
@@ -99,9 +100,6 @@ if __name__=="__main__":
         labels = sample_batched[2].numpy()
         image_paths = sample_batched[3]
         
-        #print("images.shape:\t", images.shape)
-        #print("bboxes.shape:\t", bboxes.shape)
-        #print("labels.shape:\t", labels.shape)
         for i in range(BATCH_SIZE):
             a_image = images[i].transpose((1, 2, 0)) * 255
             a_image = a_image.astype(np.uint8).copy()

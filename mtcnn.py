@@ -47,8 +47,8 @@ class Pnet(nn.Module):
         return [conv4_1, conv4_2]
 
 
-    def get_loss(self, x, bbox, cls_labels, flag):
-        cls_loss, bbox_loss, landmark_loss = self.loss_func(x, bbox, cls_labels, flag)
+    def get_loss(self, x, bbox, cls_labels):
+        cls_loss, bbox_loss, landmark_loss = self.loss_func(x, bbox, cls_labels)
         return cls_loss, bbox_loss, landmark_loss
 
 class Rnet(nn.Module):
@@ -91,8 +91,8 @@ class Rnet(nn.Module):
         return fc5_1, fc5_2, fc5_3
 
 
-    def get_loss(self, x, bbox, cls_labels, flag):
-        cls_loss, bbox_loss, landmark_loss = self.loss_func(x, bbox, cls_labels, flag)
+    def get_loss(self, x, bbox, cls_labels):
+        cls_loss, bbox_loss, landmark_loss = self.loss_func(x, bbox, cls_labels)
         return cls_loss, bbox_loss, landmark_loss
 
 
@@ -141,8 +141,8 @@ class Onet(nn.Module):
         conv6_3 = self.conv6_3(x)
         return conv6_1, conv6_2, conv6_3
 
-    def get_loss(self, x, bbox, cls_labels, flag):
-        cls_loss, bbox_loss, landmark_loss = self.loss_func(x, bbox, cls_labels, flag)
+    def get_loss(self, x, bbox, cls_labels):
+        cls_loss, bbox_loss, landmark_loss = self.loss_func(x, bbox, cls_labels)
         return cls_loss, bbox_loss, landmark_loss
 
 
@@ -156,7 +156,7 @@ class Lossfunc(nn.Module):
         self.bbox_loss_func = nn.MSELoss()
         self.landmark_loss_func = nn.MSELoss()
 
-    def forward(self, x, bbox, cls_labels, flag):
+    def forward(self, x, bbox, cls_labels):
         """
         x: [conv4_1, conv4_2, conv4_3]
             conv4_1: [batch_size, 1, 1, 1]
@@ -164,31 +164,64 @@ class Lossfunc(nn.Module):
             conv4_3: [batch_size, 10, 1,1] 
         bbox: [batch_size, 4 or 10]
         cls_labels: [batch_size, 1]
-        flag: decide which loss. although we can use bbox and cls_labels decide which loss to use
-            0: classification loss
-            1: bbox loss
-            2: landmark loss
          """
-        conv4_1, conv4_2 = x[:2]
+        conv4_1, conv4_2, conv4_3 = x[:3]
         if len(conv4_1.size())==4:
             conv4_1 = conv4_1[:, :, 0, 0] #---size: [batch_size, 1]
         if len(conv4_2.size())==4:
             conv4_2 = conv4_2[:, :, 0, 0] #---size: [batch_size, 4]
+        if len(conv4_3.size())==4:
+            conv4_3 = conv4_3[:, :, 0, 0] #---size: [batch_size, 4]
+    
+        # positive: cls 1
+        # negative: cls 0
+        # part: cls -1
+        # landmark: cls -2
+        positive_mask = torch.eq(cls_labels, 1)
+        negative_mask = torch.eq(cls_labels, 0)
+        part_mask = torch.eq(cls_labels, -1)
+        landmark_mask = torch.eq(cls_labels, -2)
 
-        if USE_LANDMARK:
-            conv4_3 = x[2]
-            if len(conv4_3.size())==4:
-                conv4_3 = conv4_3[:, :, 0, 0]
+        cls_mask = (positive_mask | negative_mask)
+        bbox_mask = (positive_mask | part_mask) 
         
-        cls_loss=None; bbox_loss=None; landmark_loss=None 
-        if flag==0:
-            cls_loss = self.cls_loss(conv4_1, cls_labels)
-        elif flag==1:
-            bbox_loss = self.bbox_loss(conv4_2, bbox)
-        elif flag==2:
-            landmark_loss = self.landmark_loss(conv4_3, bbox)
+        cls_index = cls_mask.nonzero()
+        bbox_index = bbox_mask.nonzero()
+        landmark_index = landmark_mask.nonzero()
 
-        return cls_loss, bbox_loss, landmark_loss
+        
+        loss_cls = None; loss_bbox=None; loss_landmark=None
+        #print(bbox)
+        #print("=============================")
+        #print(cls_labels)
+        #print("+++++++++++++++++++")
+        #print(landmark_index)
+        #print("PPPPPPPPPPPPPPPPPPPPP")
+        if len(cls_index.size()) > 0:
+            cls_index = cls_index[:, 0]
+            cls_labels_select = torch.index_select(cls_labels, 0, cls_index).float()
+            conv4_1_select = torch.index_select(conv4_1, 0, cls_index)
+            loss_cls = self.cls_loss(conv4_1_select, cls_labels_select)
+ 
+        if len(bbox_index.size()) > 0:
+            bbox_index = bbox_index[:,0]
+            bbox_vecs = []
+            for a_index in bbox_index:
+                bbox_vecs.append(bbox[a_index]) 
+            bbox_select = torch.stack(bbox_vecs, 0) 
+            conv4_2_select = torch.index_select(conv4_2, 0, bbox_index)
+            loss_bbox = self.bbox_loss(conv4_2_select, bbox_select)
+
+        if len(landmark_index.size()) > 0:
+            landmark_index = landmark_index[:, 0]            
+            landmark_vecs = []
+            for a_index in landmark_index:
+                landmark_vecs.append(bbox[a_index])
+            landmark_select = torch.stack(landmark_vecs, 0) 
+            conv4_3_select = torch.index_select(conv4_3, 0, landmark_index) 
+            loss_landmark = self.landmark_loss(conv4_3_select, landmark_select) 
+
+        return loss_cls, loss_bbox, loss_landmark
 
     def cls_loss(self, x, cls_labels):
         """

@@ -155,6 +155,7 @@ def detect_face_12net(cls_prob, roi, out_side, scale, width, height, threshold):
     boundingbox = boundingbox + offset * 12.0 * scale
     rectangles = torch.cat([boundingbox, score], dim=1) 
     
+    rectangles = rect2square_torch(rectangles)
     rectangles[:, :2] = torch.clamp(rectangles[:, :2], min=0)
     rectangles[:, 2] = torch.clamp(rectangles[:, 2], max=width)
     rectangles[:, 3] = torch.clamp(rectangles[:, 3], max=height)
@@ -163,7 +164,7 @@ def detect_face_12net(cls_prob, roi, out_side, scale, width, height, threshold):
     index2 = (rectangles[:, 3] >= rectangles[:, 1]) #---y2 > y1
     index = (index1 & index2).nonzero().squeeze()
     rectangles = rectangles.index_select(0, index)
-    #rectangles = rectangles.numpy().tolist()
+    rectangles = rectangles.numpy().tolist()
     return NMS(rectangles,0.5,'iou')
 
 

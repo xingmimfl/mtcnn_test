@@ -18,25 +18,25 @@ from torch.autograd import Variable
 device_id = 0
 threshold = [0.2, 0.6, 0.6]
 pnet = mtcnn.Pnet()
-pnet.load_state_dict(torch.load("../pnet/combining_dataloader_190131_iter_855000_.pth"))
+pnet.load_state_dict(torch.load("../pnet/combining_dataloader_190204_retrain_iter_1495000_.pth"))
 pnet.eval()
 pnet = pnet.cuda(device_id)
 
 anno_file = "wider_face_train.txt"
 im_dir = "/media/disk1/mengfanli/new-caffe-workplace/MTCNN_workplace/mtcnn-caffe_without_landmarks/prepare_data/WIDER_train/images"
-pos_save_dir = "../pnet/12/positive_hardmining"
-part_save_dir = "../pnet/12/part_hardmining"
-neg_save_dir = '../pnet/12/negative_hardmining'
-save_dir = "../pnet/12"
+pos_save_dir = "../rnet/24/positive_hardmining"
+part_save_dir = "../rnet/24/part_hardmining"
+neg_save_dir = '../rnet/24/negative_hardmining'
+save_dir = "../rnet/24"
 
 ensure_directory_exists(save_dir)
 ensure_directory_exists(pos_save_dir)
 ensure_directory_exists(neg_save_dir)
 ensure_directory_exists(part_save_dir)
 
-f1 = open(os.path.join(save_dir, 'pos_12_hardmining.txt'), 'w')
-f2 = open(os.path.join(save_dir, 'neg_12_hardmining.txt'), 'w')
-f3 = open(os.path.join(save_dir, 'part_12_hardmining.txt'), 'w')
+f1 = open(os.path.join(save_dir, 'pos_24_hardmining.txt'), 'w')
+f2 = open(os.path.join(save_dir, 'neg_24_hardmining.txt'), 'w')
+f3 = open(os.path.join(save_dir, 'part_24_hardmining.txt'), 'w')
 with open(anno_file, 'r') as f:
     annotations = f.readlines()
 num = len(annotations)
@@ -111,23 +111,23 @@ for annotation in annotations:
         offset_y2 = (y2 - a_rect_y2) / float(a_rect_height)
 
         cropped_im = image[int(a_rect_y1) : int(a_rect_y2), int(a_rect_x1) : int(a_rect_x2), :]
-        resized_im = cv2.resize(cropped_im, (12, 12), interpolation=cv2.INTER_LINEAR)
+        resized_im = cv2.resize(cropped_im, (24, 24), interpolation=cv2.INTER_LINEAR)
 
         if np.max(iou) >= 0.65:
             save_file = os.path.join(pos_save_dir, "%s.jpg"%p_idx)
-            f1.write("12/positive_hardmining/%s.jpg"%p_idx + ' 1 %.2f %.2f %.2f %.2f'%(offset_x1, offset_y1, offset_x2, offset_y2) + " -1 -1 -1 -1 -1 -1\n")
+            f1.write("24/positive_hardmining/%s.jpg"%p_idx + ' 1 %.2f %.2f %.2f %.2f'%(offset_x1, offset_y1, offset_x2, offset_y2) + " -1 -1 -1 -1 -1 -1\n")
             cv2.imwrite(save_file, resized_im)
             p_idx += 1                
         elif np.max(iou) >=0.4:
-            if confidence >= 0.6:
+            if confidence >= 0.5:
                 save_file = os.path.join(part_save_dir, "%s.jpg"%d_idx)
-                f3.write("12/part_hardmining/%s.jpg"%d_idx + ' -1 %.2f %.2f %.2f %.2f'%(offset_x1, offset_y1, offset_x2, offset_y2) + " -1 -1 -1 -1 -1 -1\n")
+                f3.write("24/part_hardmining/%s.jpg"%d_idx + ' -1 %.2f %.2f %.2f %.2f'%(offset_x1, offset_y1, offset_x2, offset_y2) + " -1 -1 -1 -1 -1 -1\n")
                 cv2.imwrite(save_file, resized_im)
                 d_idx += 1
         elif np.max(iou) < 0.3: #--negative samples
-            if confidence >= 0.8:
+            if confidence >= 0.6:
                 save_file = os.path.join(neg_save_dir, "%s.jpg"%n_idx)
-                f2.write("12/negative_hardmining/%s.jpg"%n_idx + ' 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1\n')
+                f2.write("24/negative_hardmining/%s.jpg"%n_idx + ' 0 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1\n')
                 cv2.imwrite(save_file, resized_im)
                 n_idx += 1                    
 

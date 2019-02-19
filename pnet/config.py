@@ -22,7 +22,7 @@ WEIGHT_DECAY = 0.004
 GAMMA = 0.8
 STEP_SIZE = 100000
 MAX_ITERS = 1500000
-SUFFIX = 'combining_dataloader_190129'
+SUFFIX = 'combining_dataloader_190204_retrain_retrain'
 BATCH_SIZE = 256
 DEVICE_IDS = [4]
 #------

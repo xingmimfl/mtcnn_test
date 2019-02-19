@@ -15,7 +15,10 @@ def main():
     with torch.cuda.device(DEVICE_IDS[0]):
         p_model = _model_init()
         #----data loader----
-        train_loader = get_dataset(files_vec=['pos_12.txt', 'neg_12.txt', 'part_12.txt', 'landmark_12_aug.txt'])
+        #train_loader = get_dataset(files_vec=['pos_12.txt', 'neg_12.txt', 'part_12.txt', 'landmark_12_aug.txt'])
+        train_loader = get_dataset(files_vec=['pos_12.txt', 'pos_12_hardmining.txt', 
+            'neg_12.txt', 'neg_12_hardmining.txt',
+            'part_12.txt', 'part_12_hardmining.txt','landmark_12_aug.txt'])
         train_iter = iter(train_loader)
         #----data iter-----
         check_dir(SNAPSHOT_PATH)
@@ -45,7 +48,6 @@ def main():
                 train_iter = iter(train_loader)
                 _images, _bbox, _labels, _image_paths = train_iter.next() 
  
-            #print(_bbox)
             #-----training, get loss, and back-propagation
             _images = Variable(_images.cuda(DEVICE_IDS[0]))
             #_bbox = Variable(_bbox.cuda(DEVICE_IDS[0]))
@@ -61,7 +63,7 @@ def main():
                 loss_cls_avg.update(loss_cls.data[0], BATCH_SIZE)
                 
             if loss_bbox is not None:
-                loss += loss_cls
+                loss += loss_bbox
                 loss_bbox_avg.update(loss_bbox.data[0], BATCH_SIZE)
 
             if loss_landmark is not None:

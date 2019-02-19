@@ -164,7 +164,7 @@ def GenerateData(ftxt,data_path,net,argument=False):
 
                 cv2.imwrite(join(dstdir,"%d.jpg" %(image_id)), F_imgs[i])
                 landmarks = map(str,list(F_landmarks[i]))
-                f.write(join(dstdir,"%d.jpg" %(image_id))+" -1 "+" ".join(landmarks)+"\n")
+                f.write(join(dstdir,"%d.jpg" %(image_id))+" -2 "+" ".join(landmarks)+"\n")
                 image_id = image_id + 1
             
     #print F_imgs.shape
@@ -176,8 +176,8 @@ def GenerateData(ftxt,data_path,net,argument=False):
     return F_imgs,F_landmarks
 
 if __name__ == '__main__':
-    dstdir = "/media/disk1/mengfanli/workplace/mtcnn_workplace/mtcnn_mfl/rnet/24/train_PNet_landmark_aug"
-    OUTPUT = '/media/disk1/mengfanli/workplace/mtcnn_workplace/mtcnn_mfl/rnet/24'
+    dstdir = "/media/disk1/mengfanli/workplace/mtcnn_workplace/mtcnn_combining_dataloader/rnet/24/train_PNet_landmark_aug"
+    OUTPUT = '/media/disk1/mengfanli/workplace/mtcnn_workplace/mtcnn_combining_dataloader/rnet/24'
     data_path = '/media/disk1/mengfanli/new-caffe-workplace/MTCNN_workplace/CNN_FacePoint'
     if not exists(OUTPUT):
         os.mkdir(OUTPUT)

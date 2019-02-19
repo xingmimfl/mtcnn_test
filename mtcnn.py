@@ -191,19 +191,21 @@ class Lossfunc(nn.Module):
 
         
         loss_cls = None; loss_bbox=None; loss_landmark=None
-        if len(cls_index.size()) > 0:
+        #if len(cls_index.size()) > 0:
+        if cls_index.numel() > 0:
             cls_index = cls_index[:, 0]
             cls_labels_select = torch.index_select(cls_labels, 0, cls_index).float()
             conv4_1_select = torch.index_select(conv4_1, 0, cls_index)
             loss_cls = self.cls_loss(conv4_1_select, cls_labels_select)
  
-        if len(bbox_index.size()) > 0:
+        #if len(bbox_index.size()) > 0:
+        if bbox_index.numel() > 0:
             bbox_index = bbox_index[:, 0]
             bbox_select = torch.index_select(bbox, 0, bbox_index)[:, :4]
             conv4_2_select = torch.index_select(conv4_2, 0, bbox_index)
             loss_bbox = self.bbox_loss(conv4_2_select, bbox_select)
 
-        if len(landmark_index.size()) > 0:
+        if landmark_index.numel() > 0:
             landmark_index = landmark_index[:, 0]            
             landmark_select = torch.index_select(bbox, 0, landmark_index)
             conv4_3_select = torch.index_select(conv4_3, 0, landmark_index) 

@@ -92,12 +92,32 @@ def NMS_torch(rectangles, threshold, type):
     x2 = rectangles[:, 2]
     y2 = rectangles[:, 3]
     score = rectangles[:, 4]
-    area = torch.mul(x2 - x1 + 1.0, y2 - y1 + 1)  
+    area = torch.mul(x2 - x1 + 1.0, y2 - y1 + 1.0)  
     _, order = torch.sort(score, descending=True)
     keep = []
-    while order.size(0) > 0:
-        i = order[0] 
-        keep.append(i)
+    while order.numel() > 0:
+        idx = order[0]  #---highest score
+        keep.append(idx)
+        if order.size(0) ==1: break
+        xx1 = torch.clamp(x1[order[1:]], min=x1[idx])
+        yy1 = torch.clamp(y1[order[1:]], min=y1[idx])
+        xx2 = torch.clamp(x2[order[1:]], max=x2[idx])
+        yy2 = torch.clamp(y2[order[1:]], max=y2[idx])
+        
+        w = torch.clamp(xx2 - xx1 + 1, min=0.0)
+        h = torch.clamp(yy2 - yy1 + 1, min=0.0)
+        inter  = torch.mul(w, h)
+        if type == 'iom':
+            o = inter / torch.clamp(area[order[1:]], max=area[idx])
+        else:
+            o = inter / (area[idx] + area[order[1:]] - inter)
+        order = order[1:][(o < threshold)]
+
+    keep = torch.LongTensor(keep) #---convert list to torch.LongTensor
+    result_rectangles = torch.index_select(rectangles, 0, keep) 
+    return result_rectangles
+
+
          
 def detect_face_12net(cls_prob, roi, out_side, scale, width, height, threshold):
     """
@@ -135,20 +155,16 @@ def detect_face_12net(cls_prob, roi, out_side, scale, width, height, threshold):
     rectangles = torch.cat([boundingbox, score], dim=1) 
     
     rectangles = rect2square_torch(rectangles)
-    zeros_tensor = torch.zeros([1])
-    width_tensor = torch.Tensor([width]).float()
-    height_tensor = torch.Tensor([height]).float()
-
-    rectangles[:, :2] = torch.max(zeros_tensor, rectangles[:, :2])
-    rectangles[:, 2] = torch.min(width_tensor, rectangles[:, 2])
-    rectangles[:, 3] = torch.min(height_tensor, rectangles[:, 3])
+    rectangles[:, :2] = torch.clamp(rectangles[:, :2], min=0)
+    rectangles[:, 2] = torch.clamp(rectangles[:, 2], max=width)
+    rectangles[:, 3] = torch.clamp(rectangles[:, 3], max=height)
 
     index1 = (rectangles[:, 2] >= rectangles[:, 0]) #---x2 > x1
     index2 = (rectangles[:, 3] >= rectangles[:, 1]) #---y2 > y1
     index = (index1 & index2).nonzero().squeeze()
     rectangles = rectangles.index_select(0, index)
-    rectangles = rectangles.numpy().tolist()
-    return NMS(rectangles,0.5,'iou')
+    rectangles = NMS_torch(rectangles, 0.5, 'iou')
+    return rectangles
 
 
 def filter_face_24net(prob, roi, rectangles, width, height, threshold):
@@ -172,20 +188,17 @@ def filter_face_24net(prob, roi, rectangles, width, height, threshold):
     rectangles[:, :4] = rectangles[:, :4] + roi
     rectangles = rect2square_torch(rectangles)
     
-    zeros_tensor = torch.zeros([1])
-    width_tensor = torch.Tensor([width]).float()
-    height_tensor = torch.Tensor([height]).float()
-
-    rectangles[:, :2] = torch.max(zeros_tensor, rectangles[:, :2])
-    rectangles[:, 2] = torch.min(width_tensor, rectangles[:, 2])
-    rectangles[:, 3] = torch.min(height_tensor, rectangles[:, 3])
+    rectangles[:, :2] = torch.clamp(rectangles[:, :2], min=0)
+    rectangles[:, 2] = torch.clamp(rectangles[:, 2], max=width)
+    rectangles[:, 3] = torch.clamp(rectangles[:, 3], max=height)
 
     index1 = (rectangles[:, 2] >= rectangles[:, 0]) #---x2 > x1
     index2 = (rectangles[:, 3] >= rectangles[:, 1]) #---y2 > y1
     index = (index1 & index2).nonzero().squeeze()
     rectangles = rectangles.index_select(0, index)
-    rectangles = rectangles.numpy().tolist()
-    return NMS(rectangles,0.7,'iou')
+    #rectangles = rectangles.numpy().tolist()
+    rectangles = NMS_torch(rectangles,0.7,'iou')
+    return rectangles
 
 def filter_face_48net(prob, roi, pts, rectangles, width, height, threshold):
     """
@@ -193,6 +206,7 @@ def filter_face_48net(prob, roi, pts, rectangles, width, height, threshold):
     roi.size: [N, 4]
     """
     binary_tensor = (prob>=threshold)
+    print(binary_tensor)
     indexes = binary_tensor.nonzero()[:, 0]
 
     rectangles = rectangles.index_select(0, indexes)
@@ -213,21 +227,18 @@ def filter_face_48net(prob, roi, pts, rectangles, width, height, threshold):
     pts[:, 1::2] = torch.add(pts[:, 1::2], rectangles[:, 1].view(-1,1))
 
     #-----
-    zeros_tensor = torch.zeros([1])
-    width_tensor = torch.Tensor([width]).float()
-    height_tensor = torch.Tensor([height]).float()
-
-    rectangles[:, :2] = torch.max(zeros_tensor, rectangles[:, :2]).int()
-    rectangles[:, 2] = torch.min(width_tensor, rectangles[:, 2]).int()
-    rectangles[:, 3] = torch.min(height_tensor, rectangles[:, 3]).int()
+    rectangles[:, :2] = torch.clamp(rectangles[:, :2], min=0)
+    rectangles[:, 2] = torch.clamp(rectangles[:, 2], max=width)
+    rectangles[:, 3] = torch.clamp(rectangles[:, 3], max=height)
 
     index1 = (rectangles[:, 2] >= rectangles[:, 0]) #---x2 > x1
     index2 = (rectangles[:, 3] >= rectangles[:, 1]) #---y2 > y1
     
     #---concat rectangles and pts
     rectangles = torch.cat([rectangles, pts], dim=1) 
-    rectangles = rectangles.numpy()
-    return NMS(rectangles, 0.7,'iom')
+    #rectangles = rectangles.numpy()
+    rectangles = NMS_torch(rectangles, 0.7,'iom')
+    return rectangles
 
 def calculateScales(img):
     """

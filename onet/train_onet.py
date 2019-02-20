@@ -15,15 +15,13 @@ def main():
     with torch.cuda.device(DEVICE_IDS[0]):
         o_model = _model_init()
         #----data loader----
-        cls_train_loader = get_dataset(files_vec=['pos_48.txt', 'neg_48.txt'])
-        bbox_train_loader = get_dataset(files_vec=['pos_48.txt', 'part_48.txt'])
-        landmark_train_loader = get_dataset(files_vec=['landmark_48_aug.txt'])
-
+        #train_loader = get_dataset(files_vec=['pos_12.txt', 'neg_12.txt', 'part_12.txt', 'landmark_12_aug.txt'])
+        train_loader = get_dataset(files_vec=['pos_48.txt', 'pos_48_hardmining.txt', 
+            'neg_48.txt', 'neg_48_hardmining.txt',
+            'part_48.txt', 'part_48_hardmining.txt',
+            'landmark_48_aug.txt'])
+        train_iter = iter(train_loader)
         #----data iter-----
-        cls_train_iter = iter(cls_train_loader)
-        bbox_train_iter = iter(bbox_train_loader)
-        landmark_train_iter = iter(landmark_train_loader)
-
         check_dir(SNAPSHOT_PATH)
 
         #----get parameters that need back-propagation
@@ -37,83 +35,66 @@ def main():
         scheduler = StepLR(optimizer, step_size=STEP_SIZE, gamma=GAMMA)
         #----training
         loss_avg = AverageMeter()
-        cls_loss_avg = AverageMeter()
-        bbox_loss_avg = AverageMeter()
-        landmark_loss_avg = AverageMeter()
+        loss_cls_avg = AverageMeter()
+        loss_bbox_avg = AverageMeter()
+        loss_landmark_avg = AverageMeter()
         acc1 = AverageMeter()
 
         for i in range(MAX_ITERS):
             scheduler.step() 
-
-            #---generate flag to decide which loss
-            flag = random.randint(0, 2)
-
-            if flag==0:
-                try:
-                    _images, _bbox, _labels, _image_paths = cls_train_iter.next()
-                except StopIteration:
-                    cls_train_iter = iter(cls_train_loader)
-                    _images, _bbox, _labels, _image_paths = cls_train_iter.next() 
-            elif flag== 1:
-                try:
-                    _images, _bbox, _labels, _image_paths = bbox_train_iter.next()
-                except StopIteration:
-                    bbox_train_iter = iter(bbox_train_loader) 
-                    _images, _bbox, _labels, _image_paths = bbox_train_iter.next() 
-            else:
-                try:
-                    _images, _bbox, _labels, _image_paths = landmark_train_iter.next()
-                except StopIteration:
-                    landmark_train_iter = iter(landmark_train_loader) 
-                    _images, _bbox, _labels, _image_paths = landmark_train_iter.next()
-                
+            #---load data----
+            try:
+                _images, _bbox, _labels, _image_paths = train_iter.next()
+            except StopIteration:
+                train_iter = iter(train_loader)
+                _images, _bbox, _labels, _image_paths = train_iter.next() 
  
             #-----training, get loss, and back-propagation
             _images = Variable(_images.cuda(DEVICE_IDS[0]))
+            #_bbox = Variable(_bbox.cuda(DEVICE_IDS[0]))
             _bbox = Variable(_bbox.cuda(DEVICE_IDS[0]))
             _labels = _labels.cuda(DEVICE_IDS[0])
             _labels_var = Variable(_labels)
             outputs = o_model(_images) #----model forward 
-            cls_loss, bbox_loss, landmark_loss = o_model.get_loss(outputs, _bbox, _labels_var, flag)
+            loss_cls, loss_bbox, loss_landmark = o_model.get_loss(outputs, _bbox, _labels_var)
 
             loss = 0
-            #if cls_loss is not None: 
-            if flag==0:
-                loss += cls_loss
-                cls_loss_avg.update(cls_loss.data[0], BATCH_SIZE)
-                prec1 =  accuracy(outputs[0].data, _labels)
-                acc1.update(prec1, BATCH_SIZE)
+            if loss_cls is not None:
+                loss += loss_cls
+                loss_cls_avg.update(loss_cls.data[0], BATCH_SIZE)
+                
+            if loss_bbox is not None:
+                loss += loss_bbox
+                loss_bbox_avg.update(loss_bbox.data[0], BATCH_SIZE)
 
-            #if bbox_loss is not None:
-            if flag==1:
-                loss += bbox_loss
-                bbox_loss_avg.update(bbox_loss.data[0], BATCH_SIZE)
+            if loss_landmark is not None:
+                loss += loss_landmark
+                loss_landmark_avg.update(loss_landmark.data[0], BATCH_SIZE)
 
-            if flag==2:
-                loss += landmark_loss
-                landmark_loss_avg.update(landmark_loss.data[0], BATCH_SIZE)
+            prec1 =  accuracy(outputs[0].data, _labels) 
+            acc1.update(prec1)
 
-            loss_avg.update(loss.data[0])
+            loss_avg.update(loss.data[0], BATCH_SIZE)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
             if (i >=TRAIN_OUT_ITER)  and (i % TRAIN_OUT_ITER == 0):  # print every 2000 mini-batches
-                print("iter:%5d " % i, " loss:%.4e" % loss_avg.avg, " cls_loss:%.4e" % cls_loss_avg.avg, " bbox_loss:%.4e" % bbox_loss_avg.avg, " landmark_loss:%.4e" % landmark_loss_avg.avg)
-                print("classication accuracy: %.4e" % acc1.avg)
-    
+                print("iter:%5d " % i, " loss:%.4e" % loss_avg.avg, " loss_cls:%.4e" % loss_cls_avg.avg, 
+                        " loss_bbox:%.4e" % loss_bbox_avg.avg, " loss_landmark:%.4e" % loss_landmark_avg.avg, " accuracy:%.4e" % acc1.avg)
+
                 save_name = '_'.join([SUFFIX, "iter", str(i), '.model'])                
                 torch.save(o_model, os.path.join(SNAPSHOT_PATH, save_name))
 
                 loss_avg = AverageMeter()
-                cls_loss_avg = AverageMeter()
-                bbox_loss_avg = AverageMeter()
-                landmark_loss_avg = AverageMeter()
+                loss_cls_avg = AverageMeter()
+                loss_bbox_avg = AverageMeter()
+                loss_landmark_avg = AverageMeter()
                 acc1 = AverageMeter()
                  
 def get_dataset(files_vec=None, images_vec=None):
-    trainset = dataset.ImageSets(isTrain=True, imageSize=24, files_vec=files_vec, images_vec=images_vec)
+    trainset = dataset.ImageSets(isTrain=True, imageSize=48, files_vec=files_vec, images_vec=images_vec)
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=BATCH_SIZE, collate_fn=dataset.detection_collate, 
                                                 num_workers=NUM_WORKERS, pin_memory=True, drop_last=True)
     print("length of trainset:\t", len(trainset))
@@ -147,10 +128,10 @@ class AverageMeter(object):
 
 def accuracy(output, target):
     batch_size = output.size(0)
-    target = target.long()
+    target = target.long() 
     output = (output >= 0.5).type_as(target)
     correct = output.eq(target)
-    res = correct.sum() * 100.0 / batch_size
+    res = correct.sum() * 100.0 / batch_size 
     return res
 
 if __name__=="__main__":

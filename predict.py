@@ -8,23 +8,30 @@ import cv2
 import numpy as np
 import tools_matrix_torch as tools
 
-device_id = 3
-threshold = [0.7, 0.7, 0.95]
+device_id = 6
+threshold = [0.6, 0.6, 0.6]
 
 if __name__=="__main__":
-    image_name = "juzhao3.jpeg"
+    #image_name = "yueyu.jpg"
+    #image_name = "juzhao3.jpeg"
+    #image_name = "juzhao2.jpeg"
+    image_name = "quanjiafu_10.jpeg"
     pnet = mtcnn.Pnet()
-    pnet.load_state_dict(torch.load("pnet/face_detect_power_bbox2_retrain_iter_999000_.pth"))
+    #pnet.load_state_dict(torch.load("pnet/face_detect_power_bbox2_retrain_iter_999000_.pth"))
+    #pnet.load_state_dict(torch.load("pnet/pnet_20190131_iter_1490000_.pth"))
+    pnet.load_state_dict(torch.load("/media/disk1/mengfanli/workplace/mtcnn_workplace/mtcnn_combining_dataloader/pnet/combining_dataloader_190204_retrain_iter_1495000_.pth"))
+    #pnet.load_state_dict(torch.load("/media/disk1/mengfanli/workplace/mtcnn_workplace/mtcnn_combining_dataloader/pnet/combining_dataloader_190204_retrain_retrain_iter_1495000_.pth"))
     pnet.eval()
     pnet = pnet.cuda(device_id)
 
     rnet = mtcnn.Rnet()
-    rnet.load_state_dict(torch.load("rnet/face_detect_0116_iter_411000_.pth"))
+    #rnet.load_state_dict(torch.load("rnet/rnet_0130_retrain_iter_1460000_.pth"))
+    rnet.load_state_dict(torch.load("/media/disk1/mengfanli/workplace/mtcnn_workplace/mtcnn_combining_dataloader/rnet/rnet_20190205_iter_1499000_.pth"))
     rnet.eval()
     rnet = rnet.cuda(device_id)
 
     onet = mtcnn.Onet()
-    onet.load_state_dict(torch.load("onet/face_detect_0116_iter_751000_.pth"))
+    onet.load_state_dict(torch.load("/media/disk1/mengfanli/workplace/mtcnn_workplace/mtcnn_combining_dataloader/onet/face_detect_0219_iter_1462000_.pth"))
     onet.eval()
     onet = onet.cuda(device_id)
     print("--------------finishing loading models--------")
@@ -56,8 +63,8 @@ if __name__=="__main__":
         rectangle = tools.detect_face_12net(cls_prob, roi, out_side, 1.0/scale, original_w, original_h, threshold[0]) 
         rectangles.extend(rectangle)
 
-    rectangles = tools.NMS(rectangles, 0.7, 'iou')
-    rectangles = torch.from_numpy(np.asarray(rectangles)).float()
+    rectangles = torch.stack(rectangles, 0)
+    rectangles = tools.NMS_torch(rectangles, 0.7, 'iou')
     #for a_rect in rectangles:
     #    a_rect = [int(x) for x in a_rect]
     #    x1, y1, x2, y2, conf = a_rect
@@ -84,7 +91,7 @@ if __name__=="__main__":
     fc5_1 = fc5_1.cpu().data
     fc5_2 = fc5_2.cpu().data
     rectangles = tools.filter_face_24net(fc5_1, fc5_2, rectangles, original_w, original_h, threshold[1])  
-    rectangles = torch.from_numpy(np.asarray(rectangles)).float() 
+    #rectangles = torch.from_numpy(np.asarray(rectangles)).float() 
     #for a_rect in rectangles:
     #    a_rect = [int(x) for x in a_rect]
     #    x1, y1, x2, y2, conf = a_rect
@@ -112,9 +119,9 @@ if __name__=="__main__":
     conv6_3 = conv6_3.cpu().data
     rectangles = tools.filter_face_48net(conv6_1, conv6_2, conv6_3, rectangles, original_w, original_h, threshold[2]) 
    
-
+    
     for rectangle in rectangles:
-        cv2.putText(image_copy, str(rectangle[4]), (int(rectangle[0]), int(rectangle[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0))
+        #cv2.putText(image_copy, str(rectangle[4]), (int(rectangle[0]), int(rectangle[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0))
         cv2.rectangle(image_copy, (int(rectangle[0]), int(rectangle[1])), (int(rectangle[2]), int(rectangle[3])), (255,0,0), 1)
         for i in range(5,15,2):
             cv2.circle(image_copy, (int(rectangle[i]), int(rectangle[i+1])), 2, (0, 255, 0))

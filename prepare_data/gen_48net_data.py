@@ -100,12 +100,12 @@ for annotation in annotations:
             box_ = box.reshape(1, -1)
             if IoU(crop_box, box_) >= 0.65:
                 save_file = os.path.join(pos_save_dir, "%s.jpg"%p_idx)
-                f1.write("48/positive/%s.jpg"%p_idx + ' 1 %.4f %.4f %.4f %.4f\n'%(offset_x1, offset_y1, offset_x2, offset_y2) + " -1 -1 -1 -1 -1 -1\n")
+                f1.write("48/positive/%s.jpg"%p_idx + ' 1 %.4f %.4f %.4f %.4f'%(offset_x1, offset_y1, offset_x2, offset_y2) + " -1 -1 -1 -1 -1 -1\n")
                 cv2.imwrite(save_file, resized_im)
                 p_idx += 1
             elif IoU(crop_box, box_) >= 0.4:
                 save_file = os.path.join(part_save_dir, "%s.jpg"%d_idx)
-                f3.write("48/part/%s.jpg"%d_idx + ' -1 %.4f %.4f %.4f %.4f\n'%(offset_x1, offset_y1, offset_x2, offset_y2) + " -1 -1 -1 -1 -1 -1\n")
+                f3.write("48/part/%s.jpg"%d_idx + ' -1 %.4f %.4f %.4f %.4f'%(offset_x1, offset_y1, offset_x2, offset_y2) + " -1 -1 -1 -1 -1 -1\n")
                 cv2.imwrite(save_file, resized_im)
                 d_idx += 1
         box_idx += 1

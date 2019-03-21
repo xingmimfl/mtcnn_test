@@ -9,13 +9,13 @@ import numpy as np
 import tools_matrix_torch as tools
 
 device_id = 6
-threshold = [0.6, 0.6, 0.6]
+threshold = [0.6, 0.6, 0.7]
 
 if __name__=="__main__":
-    #image_name = "yueyu.jpg"
+    image_name = "images/16.jpg"
     #image_name = "juzhao3.jpeg"
     #image_name = "juzhao2.jpeg"
-    image_name = "quanjiafu_10.jpeg"
+    #image_name = "quanjiafu_10.jpeg"
     pnet = mtcnn.Pnet()
     #pnet.load_state_dict(torch.load("pnet/face_detect_power_bbox2_retrain_iter_999000_.pth"))
     #pnet.load_state_dict(torch.load("pnet/pnet_20190131_iter_1490000_.pth"))
@@ -40,6 +40,8 @@ if __name__=="__main__":
     image = cv2.imread(image_name) 
     original_h, original_w, ch = image.shape
     image_copy = image.copy()
+    image_p_copy = image.copy()
+    image_r_copy = image.copy()
     #----get scales----
     scales = tools.calculateScales(image) 
     print("scales")
@@ -65,11 +67,11 @@ if __name__=="__main__":
 
     rectangles = torch.stack(rectangles, 0)
     rectangles = tools.NMS_torch(rectangles, 0.7, 'iou')
-    #for a_rect in rectangles:
-    #    a_rect = [int(x) for x in a_rect]
-    #    x1, y1, x2, y2, conf = a_rect
-    #    cv2.rectangle(image_copy, (x1,y1), (x2, y2), (0, 255, 0), 2)
-    #cv2.imwrite("pnet.jpg", image_copy)
+    for a_rect in rectangles:
+        a_rect = [int(x) for x in a_rect]
+        x1, y1, x2, y2, conf = a_rect
+        cv2.rectangle(image_p_copy, (x1,y1), (x2, y2), (0, 255, 0), 2)
+    cv2.imwrite("pnet.jpg", image_p_copy)
 
     #---rnet-----
     num_of_rects = len(rectangles)
@@ -91,12 +93,12 @@ if __name__=="__main__":
     fc5_1 = fc5_1.cpu().data
     fc5_2 = fc5_2.cpu().data
     rectangles = tools.filter_face_24net(fc5_1, fc5_2, rectangles, original_w, original_h, threshold[1])  
-    #rectangles = torch.from_numpy(np.asarray(rectangles)).float() 
-    #for a_rect in rectangles:
-    #    a_rect = [int(x) for x in a_rect]
-    #    x1, y1, x2, y2, conf = a_rect
-    #    cv2.rectangle(image, (x1,y1), (x2, y2), (0, 255, 0), 2)
-    #cv2.imwrite("rnet.jpg", image)
+    rectangles = torch.from_numpy(np.asarray(rectangles)).float() 
+    for a_rect in rectangles:
+        a_rect = [int(x) for x in a_rect]
+        x1, y1, x2, y2, conf = a_rect
+        cv2.rectangle(image_r_copy, (x1,y1), (x2, y2), (0, 255, 0), 2)
+    cv2.imwrite("rnet.jpg", image_r_copy)
     #----Onet----
     num_of_rects = len(rectangles)
     onet_input = torch.zeros(num_of_rects, 3, 48, 48)
@@ -122,7 +124,7 @@ if __name__=="__main__":
     
     for rectangle in rectangles:
         #cv2.putText(image_copy, str(rectangle[4]), (int(rectangle[0]), int(rectangle[1])), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0))
-        cv2.rectangle(image_copy, (int(rectangle[0]), int(rectangle[1])), (int(rectangle[2]), int(rectangle[3])), (255,0,0), 1)
-        for i in range(5,15,2):
-            cv2.circle(image_copy, (int(rectangle[i]), int(rectangle[i+1])), 2, (0, 255, 0))
+        cv2.rectangle(image_copy, (int(rectangle[0]), int(rectangle[1])), (int(rectangle[2]), int(rectangle[3])), (0,255, 0), 2)
+        #for i in range(5,15,2):
+        #    cv2.circle(image_copy, (int(rectangle[i]), int(rectangle[i+1])), 2, (0, 255, 0))
     cv2.imwrite('test.jpg', image_copy)
